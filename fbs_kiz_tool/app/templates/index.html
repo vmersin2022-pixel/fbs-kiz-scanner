@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>FBS КИЗ Tool</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
+    h2 { color: #333; margin-bottom: 30px; }
+    .scan-container { display: flex; align-items: flex-start; gap: 30px; margin: 30px 0; flex-wrap: wrap; }
+    .scan-form { flex: 1; min-width: 300px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .scan-input { flex: 1; padding: 15px; font-size: 18px; border: 2px solid #ddd; border-radius: 8px; min-width: 300px; }
+    .scan-input:focus { border-color: #4CAF50; outline: none; box-shadow: 0 0 0 3px rgba(76,175,80,0.1); }
+    button { padding: 15px 25px; font-size: 16px; background: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+    button:hover { background: #45a049; }
+    
+    /* ✅ КАРТОЧКА ТОВАРА - НОВЫЙ ДИЗАЙН */
+    .product-photo-container {
+      width: 160px; height: 160px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      margin-bottom: 10px;
+    }
+    
+    .product-photo {
+      width: 150px; height: 150px;
+      object-fit: cover; border-radius: 10px;
+      border: 2px solid #e0e0e0;
+      transition: all 0.3s ease;
+    }
+    
+    .product-photo:hover { transform: scale(1.05); box-shadow: 0 8px 25px rgba(0,0,0,0.2); }
+    
+    .product-card-fallback {
+      width: 150px; height: 150px;
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border: 3px dashed #dee2e6;
+      border-radius: 12px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; font-weight: 600;
+      color: #6c757d; font-size: 14px; line-height: 1.4;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .product-info {
+      flex: 1; min-width: 300px; padding: 20px;
+      background: #f8f9fa; border-radius: 12px;
+      border-left: 5px solid #4CAF50;
+    }
+    
+    .success-message { color: #28a745; font-weight: bold; margin: 0 0 15px 0; font-size: 16px; }
+    .article { font-size: 20px; font-weight: bold; color: #333; margin: 0 0 10px 0; }
+    .details { color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 15px; }
+    .barcode { font-family: monospace; background: white; padding: 8px 12px; border-radius: 6px; font-size: 16px; font-weight: bold; color: #495057; }
+    
+    .token-form { display: flex; flex-wrap: wrap; gap: 15px; align-items: end; margin-bottom: 30px; padding: 20px; background: #f8f9fa; border-radius: 12px; }
+    .token-input { flex: 1; min-width: 250px; padding: 15px; font-size: 16px; border: 2px solid #ddd; border-radius: 8px; }
+    .token-input:focus { border-color: #007bff; outline: none; }
+    
+    .stats { background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 16px; font-weight: 500; }
+    .error { color: #dc3545; background: #f8d7da; padding: 15px; border-radius: 8px; border-left: 5px solid #dc3545; }
+  </style>
+</head>
+<body>
+  <h2>📦 FBS-КИЗ сканер WB</h2>
+
+  <!-- ✅ ФОРМА ТОКЕНОВ -->
+  <form action="/start" method="post" class="token-form">
+    <input type="text" name="token" placeholder="API токен WB" value="{{ token or '' }}" required class="token-input">
+    <input type="text" name="content_token" placeholder="Контент токен WB" value="{{ content_token or token or '' }}" class="token-input">
+    <input type="text" name="supply_id" placeholder="ID поставки (WB-GI-...)" value="{{ supply_id or '' }}" required class="token-input">
+    <button type="submit">🔄 Загрузить заказы</button>
+  </form>
+
+  {% if confirm_count %}
+    <div class="stats">📋 Заказов на сборке: <strong>{{ confirm_count }}</strong></div>
+  {% endif %}
+
+  {% if order_info and order_info.error %}
+    <div class="error">❌ {{ order_info.error }}</div>
+  {% endif %}
+
+  <!-- ✅ СКАНЕР + КАРТОЧКА ТОВАРА -->
+  <div class="scan-container">
+    <!-- Форма сканирования -->
+    <form action="/scan" method="post" class="scan-form">
+      <input type="text" id="inputField" name="input_value" class="scan-input" 
+             placeholder="🖱️ Сканируй стикер WB или КИЗ..." autofocus autocomplete="off" required>
+      <input type="hidden" name="token" value="{{ token or '' }}">
+      <input type="hidden" name="content_token" value="{{ content_token or '' }}">
+      <input type="hidden" name="supply_id" value="{{ supply_id or '' }}">
+      <button type="submit">✅ OK</button>
+    </form>
+
+    <!-- ✅ КАРТОЧКА ТОВАРА -->
+    {% if order_info and (order_info.success or order_info.nmId) %}
+      <div class="product-info">
+        {% if order_info.success %}
+          <div class="success-message">✅ {{ order_info.success }}</div>
+        {% endif %}
+        
+        {% if order_info.article %}
+          <div class="article">{{ order_info.article }}</div>
+          <div class="details">
+            nmId: <strong>{{ order_info.nmId }}</strong><br>
+            ШК: {{ order_info.barcode or '---' }}
+          </div>
+        {% endif %}
+        
+        <!-- ✅ НОВЫЙ БЛОК ФОТО/РАМКА -->
+        <div style="width: 160px; height: 160px; border-radius: 12px; border: 2px solid #ddd; overflow: hidden; background: #f8f9fa;">
+  {% if order_info.photo and order_info.photo != "" %}
+    <img src="{{ order_info.photo }}" 
+         style="width: 100%; height: 100%; object-fit: cover;"
+         alt="Фото товара"
+         loading="lazy">
+  {% else %}
+    <div style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 14px; color: #666; text-align: center; padding: 20px;">
+      {{ order_info.nmId or '---' }}<br>
+      <small>нет фото</small>
+    </div>
+  {% endif %}
+</div>
+
+          
+          {% if not order_info.photo or order_info.photo == "" %}
+            <div class="product-card-fallback">
+              {{ order_info.nmId or '---' }}<br>
+              <small>нет фото</small>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- ✅ АВТОФОКУС + ЗВУК -->
+  <script>
+    let lastScanTime = 0;
+    
+    function autoFocus() {
+      const input = document.getElementById('inputField');
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }
+    
+    // Фокус при загрузке
+    window.addEventListener('load', autoFocus);
+    document.addEventListener('DOMContentLoaded', autoFocus);
+    
+    // Автофокус после Enter + звук
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target.id === 'inputField') {
+        lastScanTime = Date.now();
+        // Звук сканирования
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAo');
+        audio.play().catch(() => {});
+        setTimeout(autoFocus, 1200);
+      }
+    });
+    
+    // Клик по полю = фокус
+    document.getElementById('inputField')?.addEventListener('click', function() {
+      this.select();
+    });
+  </script>
+</body>
+</html>
